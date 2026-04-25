@@ -6,7 +6,7 @@ const Namespaces = {
   svg: SVG_NAMESPACE,
 };
 export const TEXT_NODE = 3;
-const COMMENT_NODE = 8;
+export const COMMENT_NODE = 8;
 export const DOCUMENT_NODE = 9;
 
 const CHILDREN = 'children';

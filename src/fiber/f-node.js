@@ -51,7 +51,7 @@ export type FRoot = {
   containerInfo: any,
 }
 
-function FNode(
+function FNodeConstructor(
   tag: number,
   props: any,
   key: string | null
@@ -88,11 +88,11 @@ function FNode(
 }
 
 export function createFNode(tag: number, props: any, key: string | null): FNode {
-  return new FNode(tag, props, key);
+  return new FNodeConstructor(tag, props, key);
 }
 
 export function createFRoot(container: Container): FRoot {
-  const current = new FNode(Tag.Root, null, null);
+  const current = new FNodeConstructor(Tag.Root, null, null);
   const root = {
     current: current,
     containerInfo: container,

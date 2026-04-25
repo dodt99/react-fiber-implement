@@ -12,7 +12,7 @@ import {
   FComponent,
   Text,
   Fragment,
-} from '../shared/Tag';
+} from '../shared/tag';
 import { isArray } from '../shared/validate';
 import { NoEffect, Placement, Deletion } from '../shared/effect-tag';
 
