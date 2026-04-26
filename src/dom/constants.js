@@ -1,3 +1,14 @@
+// =============================================================================
+// src/dom/constants.js
+// -----------------------------------------------------------------------------
+// Các hằng số dùng cho tầng DOM. Giá trị TEXT_NODE/COMMENT_NODE/DOCUMENT_NODE
+// chính là các giá trị `Node.nodeType` chuẩn của trình duyệt:
+//   - 1: ELEMENT_NODE (vd: <div>)
+//   - 3: TEXT_NODE
+//   - 8: COMMENT_NODE
+//   - 9: DOCUMENT_NODE (chính là `document`)
+// Dùng để phân biệt loại node khi append/remove/insert (xem utils/validate.js).
+// =============================================================================
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 

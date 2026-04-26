@@ -1,3 +1,16 @@
+// =============================================================================
+// src/fiber/commit-work.js  -- COMMIT PHASE: thực sự đụng vào DOM
+// -----------------------------------------------------------------------------
+// Sau khi pha render dựng xong cây WIP và effect-list, scheduler.commitRoot()
+// đi qua effect-list, gọi 1 trong 3 hàm chính ở file này:
+//
+//   commitPlacement(fiber)  -> insert/append fiber.instanceNode vào DOM cha.
+//   commitWork(current, fb) -> apply updatePayload (props/text changes).
+//   commitDeletion(fiber)   -> gỡ DOM, gọi cleanup (destroyed) trong subtree.
+//
+// + commitPassiveWithEffects/commitWithEffectList: chạy effect mounted/destroyed
+//   của hook lifeCycle.
+// =============================================================================
 import {
   resetTextContent,
   appendChild,
@@ -12,10 +25,14 @@ import {
 import { Root, DNode, Text, FComponent } from "../shared/tag";
 import { ContentReset, Placement } from "../shared/effect-tag";
 
+// "Host parent" = fiber gần nhất có DOM thật để chứa con của ta (DNode/Root).
+// FComponent/Fragment KHÔNG phải host parent vì chúng không có DOM riêng.
 function isHostParent(fiber) {
   return fiber.tag === DNode || fiber.tag === Root;
 }
 
+// Leo lên `return` cho tới khi gặp host parent. Cần thiết để biết append
+// vào DOM của ai khi cha trực tiếp là một component/fragment.
 function getHostparentFNode(fiber) {
   let parent = fiber.return;
   while (parent !== null) {
@@ -26,6 +43,18 @@ function getHostparentFNode(fiber) {
   }
 }
 
+/**
+ * Tìm DOM "đứng sau" fiber để dùng làm anchor cho insertBefore.
+ *
+ * Vấn đề: cha của fiber có thể là FComponent/Fragment không có DOM, nên
+ * "sibling DOM" không trùng `fiber.sibling`. Ta phải đi sang sibling fiber,
+ * rồi xuống sâu cho đến khi gặp một DNode/Text mà:
+ *   - là host (có instanceNode), VÀ
+ *   - KHÔNG đang được Placement (vì DOM của nó cũng chưa nằm đúng chỗ).
+ *
+ * Nếu tìm được -> trả DOM của nó (anchor cho insertBefore).
+ * Không tìm được -> null -> commitPlacement sẽ appendChild vào cuối.
+ */
 function getHostSibling(fiber) {
   // We're going to search forward into the tree until we find a sibling host
   // node. Unfortunately, if multiple insertions are done in a row we have to
@@ -66,6 +95,14 @@ function getHostSibling(fiber) {
   }
 }
 
+/**
+ * Insert / Append fiber `finishedWork` vào DOM cha thật.
+ *   1. Tìm host parent fiber -> lấy DOM cha (containerInfo nếu là Root).
+ *   2. Tìm "before" anchor (host sibling) để chèn đúng vị trí.
+ *   3. Đi qua subtree, mỗi khi gặp DOM "lá" (DNode/Text) thì insert vào DOM cha.
+ *      KHÔNG đi vào trong DOM con (vì nội dung bên trong DOM con đã được
+ *      ráp từ pha completeWork rồi).
+ */
 export function commitPlacement(finishedWork) {
   // Recursively insert all host nodes into the parent.
   const parentFNode = getHostparentFNode(finishedWork);
@@ -137,6 +174,11 @@ function safelyDetachRef(current) {
   }
 }
 
+/**
+ * Khi 1 fiber bị xoá: nếu là FComponent thì gọi tất cả cleanup function
+ * (`destroyed`) của các hook lifeCycle đã từng đăng ký (vd: cleanup của
+ * useEffect mounted). Đi qua circular linked-list bằng do-while.
+ */
 // User-originating errors (lifecycles and refs) should not interrupt
 // deletion, so don't let them throw. Host-originating errors should
 // interrupt deletion, so it's okay
@@ -166,6 +208,12 @@ function commitUnmount(current) {
   }
 }
 
+/**
+ * Đi DFS toàn bộ subtree, gọi commitUnmount() cho MỖI fiber để chạy cleanup,
+ * nhưng KHÔNG removeChild từng cái - vì khi xoá node DOM gốc, các con DOM
+ * đều biến mất theo (browser tự xử). Chỉ cần đảm bảo tất cả lifecycle cleanup
+ * trong cây chạy trước khi gỡ DOM "đỉnh" ra.
+ */
 function commitNestedUnmounts(root) {
   // While we're inside a removed host node we don't want to call
   // removeChild on the inner nodes because they're removed by the top
@@ -196,6 +244,13 @@ function commitNestedUnmounts(root) {
   }
 }
 
+/**
+ * Tìm cha host (DOM thật) -> với mỗi DOM "đỉnh" trong subtree gặp được:
+ *   - Chạy cleanup cho tất cả con (commitNestedUnmounts).
+ *   - removeChild(parent, dom) để gỡ khỏi cây thật.
+ * Với fiber không có DOM (FComponent/Fragment) -> chỉ chạy unmount rồi tiếp
+ * tục đi sâu xuống tìm DOM bên dưới để remove.
+ */
 function unmountHostComponents(current) {
   // We only have the top Fiber that was deleted but we need recurse down its
   // children to find all the terminal nodes.
@@ -261,6 +316,8 @@ function unmountHostComponents(current) {
   }
 }
 
+// Cắt liên kết của fiber bị xoá khỏi cây để JS GC có thể thu hồi bộ nhớ.
+// Phải clear cả 2 phía (current + alternate) vì chúng cross-reference nhau.
 function detachFiber(current) {
   // Cut off the return pointers to disconnect it from the tree. Ideally, we
   // should clear the child pointer of the parent alternate to let this
@@ -275,11 +332,18 @@ function detachFiber(current) {
   }
 }
 
+// Entry: xoá fiber khỏi DOM + tách ra khỏi cây fiber.
 export function commitDeletion(current) {
   unmountHostComponents(current);
   detachFiber(current);
 }
 
+/**
+ * Áp dụng các thay đổi (Update) cho fiber lên DOM:
+ *   - DNode: dùng updatePayload đã tính sẵn ở completeWork (props/text diff).
+ *   - Text : đổi nodeValue.
+ *   - Root/FComponent: không làm gì (lifecycle xử ở commitWithEffectList).
+ */
 export function commitWork(current, finishedWork) {
   switch (finishedWork.tag) {
     case FComponent: {
@@ -326,11 +390,32 @@ export function commitWork(current, finishedWork) {
   }
 }
 
+// Passive effects (~ useEffect): được scheduler gọi ở "Pass 3" sau commit.
+// Đây CHÍNH LÀ chỗ hook lifeCycle({mounted, destroyed}) của user thực sự fire.
+// Theo thứ tự 2 lượt:
+//   1) unmount cleanup của lần trước (UnmountPassive=128).
+//   2) mount của lần này (MountPassive=64).
+// Tách 2 lượt vì destroyed của hook A có thể quan sát DOM/state trước khi
+// mounted của hook B chạy. Số literal 128/64 = bit của UnmountPassive/MountPassive
+// trong shared/with-effect.js (để tránh phụ thuộc vòng tròn import).
 export function commitPassiveWithEffects(finishedWork) {
   commitWithEffectList(128, 0, finishedWork);
   commitWithEffectList(0, 64, finishedWork);
 }
 
+/**
+ * Helper chung để chạy effect-list của một function component.
+ *   unmountTag : bit dùng để chọn các effect cần CLEANUP trong lượt này.
+ *   mountTag   : bit dùng để chọn các effect cần MOUNT trong lượt này.
+ *
+ * `lifeCycle.lastEffect` là 1 circular linked-list, nên cần do-while để duyệt
+ * bắt đầu từ first = last.next, dừng khi quay lại first.
+ *
+ * Mỗi effect:
+ *   - Nếu match unmountTag: gọi `destroyed()` (cleanup), clear destroyed.
+ *   - Nếu match mountTag  : gọi `mounted()`, lưu giá trị return làm
+ *     destroyed cho lần unmount sau.
+ */
 export function commitWithEffectList(unmountTag, mountTag, finishedWork) {
   const lifeCycle = finishedWork.lifeCycle;
   let lastEffect = lifeCycle !== null ? lifeCycle.lastEffect : null;

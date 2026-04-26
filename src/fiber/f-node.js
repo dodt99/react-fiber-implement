@@ -1,3 +1,24 @@
+// =============================================================================
+// src/fiber/f-node.js  -- Định nghĩa & helper tạo Fiber Node (FNode)
+// -----------------------------------------------------------------------------
+// FNode (Fiber Node) là "đơn vị công việc" của reconciler. Mỗi component,
+// mỗi DOM element, mỗi text node trong UI đều ứng với một FNode trên cây
+// fiber. React thật cũng có cấu trúc tương tự (gọi là Fiber).
+//
+// Cây fiber được tổ chức kiểu LINKED TREE, không phải mảng:
+//   - return : trỏ về cha
+//   - child  : con đầu tiên
+//   - sibling: anh em kế tiếp
+// Nhờ vậy có thể duyệt theo DFS bằng vòng lặp (không đệ quy) và CÓ THỂ
+// PAUSE giữa chừng — đó chính là điểm cốt lõi của Fiber.
+//
+// React duy trì 2 cây song song (double-buffering):
+//   - "current"           : đang hiển thị trên màn hình
+//   - "work-in-progress"  : đang được dựng cho lần render tiếp theo
+// Mỗi node ở cây này có pointer `alternate` trỏ sang node "song sinh" ở
+// cây kia. Nhờ thế khi "commit" chỉ cần đổi root.current sang WIP là xong,
+// không cần xoá-tạo lại toàn bộ cây.
+// =============================================================================
 // @flow
 import type { VNodeElement, Container } from "../shared/types";
 import * as Tag from "../shared/tag";
@@ -50,6 +71,9 @@ export type FRoot = {
   containerInfo: any,
 };
 
+// Sử dụng function constructor (không phải class) để các JS engine V8 có thể
+// "ổn định layout" của object (hidden class) -> truy cập property nhanh hơn.
+// Đây là tối ưu y hệt React thật làm.
 function FNodeConstructor(tag: number, props: any, key: string | null) {
   this.tag = tag;
   this.key = key;
@@ -62,26 +86,39 @@ function FNodeConstructor(tag: number, props: any, key: string | null) {
   this.sibling = null;
   this.index = 0;
 
+  // props : props "đầu vào" cần xử lý trong lần work này
+  // prevProps : props của lần render trước -> để diff (bailout nếu === props mới)
+  // prevState : state lưu trữ (đầu danh sách hooks - linked list của các Hook object)
   this.props = props;
   this.prevProps = null;
   this.prevState = null;
 
+  // effect chain: là một linked list nối qua `.next`, gom mọi fiber CÓ side
+  // effect (Placement/Update/Deletion/Passive) trong subtree để commit phase
+  // chỉ cần "đi một mạch" áp dụng -> không phải duyệt lại cả cây.
   this.effectTag = 0;
   this.nextEffect = null;
   this.firstEffect = null;
   this.lastEffect = null;
+  // Phiên bản này dùng class LinkedList (xem structures/linked-list.js) thay
+  // vì firstEffect/lastEffect "thô".
   this.linkedList = new LinkedList();
   this.next = null;
 
+  // rootRender chỉ tồn tại trên fiber Root: chứa { element } cần render.
   this.rootRender = null;
 
+  // alternate: trỏ sang fiber đối ứng ở cây song sinh.
   this.alternate = null;
 
+  // Working = cần làm; NoWork = đã xong, có thể bailout.
   this.status = Status.Working;
 
+  // lifeCycle: queue các effect (mounted/destroyed) cho function component này.
   this.lifeCycle = null;
 }
 
+// Factory tạo một FNode mới.
 export function createFNode(
   tag: number,
   props: any,
@@ -90,6 +127,13 @@ export function createFNode(
   return new FNodeConstructor(tag, props, key);
 }
 
+/**
+ * Tạo FRoot — gốc của cả ứng dụng. Bao gồm:
+ *   - current        : fiber Root đầu tiên (chính là cây "current" ban đầu)
+ *   - containerInfo  : DOM container (#root)
+ * Lưu ý kỹ thuật circular: FRoot chứa FNode, mà FNode lại chứa lại FRoot
+ * trong instanceNode -> nhờ vậy ở bất cứ fiber nào cũng leo được lên root.
+ */
 export function createFRoot(container: Container): FRoot {
   const current = new FNodeConstructor(Tag.Root, null, null);
   const root = {
@@ -101,9 +145,20 @@ export function createFRoot(container: Container): FRoot {
 }
 
 /**
- * @param {FNode} current is current fnode is displayed on screen
- * @param {any} props is nextProps of fiber
- * @return {FNode} new Fnode is next fiber to work is called work-in-progress
+ * Tạo (hoặc tái sử dụng) Work-In-Progress fiber từ một fiber "current".
+ *
+ *   - Lần render đầu  : alternate chưa có -> tạo FNode mới, thiết lập liên
+ *                       kết hai chiều current<->WIP qua `alternate`.
+ *   - Render lần sau  : alternate đã có sẵn (object cũ ở cây WIP trước đó)
+ *                       -> TÁI SỬ DỤNG để giảm allocate (giống free-list).
+ *                       Khi tái dùng phải reset effect list & effectTag.
+ *
+ * Ý tưởng "double buffer" này y hệt cơ chế render frame đồ hoạ: 2 buffer A/B,
+ * vẽ xong B thì swap A và B, tránh tearing.
+ *
+ * @param {FNode} current cây hiện đang hiển thị
+ * @param {any}   props    props mới sẽ áp lên WIP
+ * @return {FNode} WIP fiber để bắt đầu work
  */
 
 export function createWIP(current: FNode, props: any): FNode {
@@ -114,12 +169,15 @@ export function createWIP(current: FNode, props: any): FNode {
     WIP = createFNode(current.tag, props, current.key);
     WIP.elementType = current.elementType;
     WIP.type = current.type;
+    // Cùng trỏ về một DOM instance: DOM thuộc về cả 2 phía cho tới khi
+    // commit ráp xong.
     WIP.instanceNode = current.instanceNode;
 
+    // Link hai chiều current <-> WIP
     WIP.alternate = current;
     current.alternate = WIP;
   } else {
-    // set props and reset effect tag
+    // Tái sử dụng: chỉ cần ghi đè props và xoá hết effect cũ.
     WIP.props = props;
     WIP.effectTag = 0;
 
@@ -130,6 +188,8 @@ export function createWIP(current: FNode, props: any): FNode {
     WIP.linkedList = new LinkedList();
     WIP.next = null;
   }
+  // Khởi điểm: WIP "kế thừa" cấu trúc con của current. Đến beginWork() nếu
+  // có thay đổi mới clone/tạo mới children (structural sharing).
   WIP.child = current.child;
 
   WIP.prevProps = current.prevProps;
@@ -147,6 +207,11 @@ export function createWIP(current: FNode, props: any): FNode {
 }
 
 /**
+ * Convert một VNode (element ảo do JSX/`h()` sinh ra) thành FNode.
+ *   - type là string ('div', 'p'...)  -> DNode (host element)
+ *   - type là function (component)    -> FComponent (function component)
+ * Còn Text fiber thì được tạo riêng trong children.js (createFNodeFromText).
+ *
  * @param {Element} el is v-node
  * @return {FNode} new Fnode is created based on v-node element
  */
@@ -167,6 +232,8 @@ export function createFNodeFromElement(el: VNodeElement): FNode {
   return fnode;
 }
 
+// Khi children là một mảng (vd: users.map(...)) ta gói nó thành 1 fiber
+// Fragment -> Fragment không tạo DOM cho chính nó, chỉ chứa danh sách con.
 export function createFNodeFromFragment(elements, key) {
   const fnode = createFNode(Tag.Fragment, elements, key);
   return fnode;

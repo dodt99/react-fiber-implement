@@ -1,3 +1,24 @@
+// =============================================================================
+// src/fiber/f-with.js  -- Cài đặt hooks (withState ~ useState, withLifeCycle ~ useEffect)
+// -----------------------------------------------------------------------------
+// Hooks không phải "ma thuật" - chúng dựa vào 2 tính chất:
+//   1. Function component được render TUẦN TỰ; thứ tự gọi hook là cố định.
+//   2. Có một biến module ghi nhớ "fiber đang render" để hook biết phải đọc/
+//      ghi vào đâu.
+//
+// Mỗi hook là một object Hook = { prevState, baseState, queue, baseUpdate, next }.
+// Tất cả hook của 1 component xếp thành LINKED LIST, đầu danh sách lưu ở
+// `fiber.prevState`. Đó là lý do khi render lại ta lấy `current.prevState`
+// để biết hook nào ứng với hook nào.
+//
+// Quy ước biến module:
+//   currentlyRenderingFNode : fiber WIP đang chạy hàm component.
+//   firstCurrentWith        : đầu list Hook ở fiber CURRENT (lần render trước).
+//   currentWith             : con trỏ đang đi trong list current.
+//   firstWIPFNode           : đầu list Hook đang dựng cho fiber WIP.
+//   WIPWith                 : con trỏ đang dựng trong list WIP.
+//   componentUpdateQueue    : queue effect (mounted/destroyed) cho WIP.
+// =============================================================================
 import { scheduleWork } from "./scheduler";
 import * as Status from "../shared/status-work";
 import { Update as UpdateEffect } from "../shared/effect-tag";
@@ -38,11 +59,16 @@ function getCurrentRenderingFNode() {
   return currentlyRenderingFNode;
 }
 
+// Gọi NGAY TRƯỚC khi gọi hàm Component(props): set fiber đang render và
+// "đọc" list hook cũ từ fiber current để tái sử dụng giá trị state.
 export function prepareWithState(current, WIP) {
   currentlyRenderingFNode = WIP;
   firstCurrentWith = current !== null ? current.prevState : null;
 }
 
+// Gọi NGAY SAU khi Component trả về JSX: chốt list hook đã dựng vào WIP và
+// queue effect lifecycle. Sau đó dọn module state để KHÔNG bị "rò" sang
+// component khác (vì tất cả render đều dùng chung biến module).
 export function finishedWith(Component, props, children) {
   // This must be called after every function component to prevent hooks from
   // being used in classes.
@@ -61,6 +87,8 @@ export function finishedWith(Component, props, children) {
   return children;
 }
 
+// Reset toàn bộ trạng thái hooks. Được gọi đầu mỗi lần scheduleWork để bảo
+// đảm môi trường sạch (đề phòng lượt render trước throw error giữa chừng).
 export function resetWiths() {
   // This is called instead of `finishHooks` if the component throws. It's also
   // called inside mountIndeterminateComponent if we determine the component
@@ -73,6 +101,7 @@ export function resetWiths() {
   componentUpdateQueue = null;
 }
 
+// Tạo Hook trống cho lần MOUNT đầu tiên.
 function createWith() {
   return {
     prevState: null,
@@ -85,6 +114,8 @@ function createWith() {
   };
 }
 
+// Clone Hook từ current sang WIP cho lần UPDATE. Phải clone (không share
+// reference) để render dở dang có thể bỏ đi mà không hỏng state hiện tại.
 function cloneWith(With) {
   return {
     prevState: With.prevState,
@@ -97,6 +128,20 @@ function cloneWith(With) {
   };
 }
 
+/**
+ * Mỗi lần một hook (withState/withLifeCycle) được gọi trong component, hàm này
+ * "tiến" con trỏ WIPWith sang Hook tiếp theo trong list (tạo mới nếu chưa có).
+ *
+ * Cây quyết định:
+ *   - Đầu list (WIPWith === null):
+ *       Lần render đầu (firstWIPFNode === null): tạo Hook đầu tiên, có thể
+ *       clone từ firstCurrentWith nếu component đã render trước đó.
+ *       Lần render sau (đã có firstWIPFNode): chỉ cần reset con trỏ về đầu.
+ *   - Giữa list: đi tiếp .next; tạo mới nếu cuối list (= hook mới được thêm).
+ *
+ * Chính cấu trúc này khiến RULE OF HOOKS tồn tại: nếu thay đổi thứ tự gọi hook
+ * giữa các lần render, ta sẽ map nhầm Hook[i] cũ với Hook[i] mới (khác bản chất).
+ */
 function createWIPWith() {
   if (WIPWith === null) {
     // this is the first hook in the list
@@ -144,6 +189,8 @@ function createWIPWith() {
   return WIPWith;
 }
 
+// Reducer mặc định cho withState: nếu action là function -> gọi với state cũ,
+// ngược lại -> coi action chính là state mới. Y hệt useState trong React.
 function basicStateReducer(state, action) {
   return typeof action === "function" ? action(state) : action;
 }
@@ -152,6 +199,19 @@ function basicStateReducer(state, action) {
 //   return '_' + Math.random().toString(36).substr(2, 9);
 // };
 
+/**
+ * Cài đặt thực sự của useState (đặt tên là withReducer/withState).
+ *
+ * MOUNT (queue === null):
+ *   - Tạo Hook + queue rỗng, lưu initialState.
+ *   - Tạo dispatcher đóng-gói (fnode + queue) để bên ngoài gọi.
+ *
+ * UPDATE (queue đã có):
+ *   - queue chứa các "update" được dispatch giữa render trước và render này
+ *     (linked list TUẦN HOÀN: queue.last.next = first, để có thể append O(1)
+ *     mà vẫn duyệt được từ first).
+ *   - Áp tuần tự các update lên baseState để được state mới -> trả về.
+ */
 export function withReducer(initialState) {
   // const id = generalId();
   currentlyRenderingFNode = getCurrentRenderingFNode();
@@ -225,6 +285,15 @@ export function withReducer(initialState) {
   return [WIPWith.prevState, dispatch];
 }
 
+/**
+ * Hàm setState trả về cho user. Khi user gọi `dispatch(value)`:
+ *   1. Đẩy fiber về Working để beginWork không bailout.
+ *   2. Nối update vào queue.last (linked-list tuần hoàn).
+ *   3. scheduleWork(fnode) -> kick một idle callback để render lại.
+ *
+ * Vì update lưu trên QUEUE (không apply ngay), nhiều setState liên tục
+ * trong cùng 1 callback sẽ được "batch" lại thành 1 lần render.
+ */
 function dispatchAction(fnode, queue, action) {
   fnode.status = 1;
   const alternate = fnode.alternate;
@@ -255,6 +324,26 @@ function dispatchAction(fnode, queue, action) {
   scheduleWork(fnode);
 }
 
+/**
+ * Cài đặt useEffect-like (lifeCycle). Khi user gọi `lifeCycle({mounted, ...})`:
+ *   - Tiến hook (createWIPWith).
+ *   - Nếu deps không đổi (inputsAreEqual) -> chỉ pushEffect với tag NoEffect
+ *     để giữ chỗ trong list (đảm bảo thứ tự hook), KHÔNG đánh effectTag fiber.
+ *   - Nếu deps đổi -> đánh fiber.effectTag |= UpdateEffect (để commit phase
+ *     sẽ chạy mounted/destroyed) và pushEffect với tag thực.
+ *
+ * Effect được lưu trong `componentUpdateQueue.lastEffect` (circular linked list).
+ *
+ * Hai điểm chưa hoàn thiện trong codebase đơn giản này (giúp người đọc lưu ý):
+ *   1) `inputs` đang hard-code = undefined -> nextInputs = []. Vì `prevEffect.inputs`
+ *      cũng là [], nên inputsAreEqual luôn true ở lần re-render. Hệ quả: hook
+ *      lifeCycle chạy đúng 1 lần (mount), về sau coi như deps=[] cố định.
+ *   2) `prevEffect.destroy` (dòng dưới) THIẾU chữ "ed" -> đáng lẽ là `destroyed`.
+ *      Bug này khiến cleanup function gắn từ lần mount KHÔNG được kế thừa qua
+ *      các re-render trung gian. Nó vẫn fire khi unmount lần đầu (vì commitUnmount
+ *      đọc trực tiếp current.lifeCycle), nhưng nếu component re-render trước rồi
+ *      mới unmount, destroyed sẽ bị mất do bug này.
+ */
 export function withLifeCycle(fnodeEffectTag, withEffectTag, lifeCycle) {
   currentlyRenderingFNode = getCurrentRenderingFNode();
   WIPWith = createWIPWith();
@@ -264,7 +353,7 @@ export function withLifeCycle(fnodeEffectTag, withEffectTag, lifeCycle) {
   if (currentWith !== null) {
     // for componentdidupdate
     const prevEffect = currentWith.prevState;
-    destroyed = prevEffect.destroy;
+    destroyed = prevEffect.destroy; // BUG: đáng lẽ prevEffect.destroyed (xem comment hàm).
     if (inputsAreEqual(nextInputs, prevEffect.inputs)) {
       pushEffect(NoHookEffect, lifeCycle, destroyed);
       return;
@@ -275,6 +364,9 @@ export function withLifeCycle(fnodeEffectTag, withEffectTag, lifeCycle) {
   WIPWith.prevState = pushEffect(withEffectTag, lifeCycle, destroyed);
 }
 
+// Chèn effect vào cuối circular linked list. Nếu list trống thì khởi tạo
+// (effect.next = effect). Sau khi chèn, lastEffect luôn trỏ phần tử cuối cùng,
+// và lastEffect.next chính là phần tử ĐẦU TIÊN -> tiện cho do-while duyệt.
 function pushEffect(tag, lifeCycle, destroyed) {
   const { mounted, updated } = lifeCycle;
   const effect = {
@@ -309,6 +401,8 @@ function createFunctionComponentUpdateQueue() {
   };
 }
 
+// So sánh 2 mảng deps theo Object.is (không dùng === để xử lý NaN và -0/+0
+// đúng quy chuẩn). Thay thế cho việc gọi Object.is trong môi trường cũ.
 function inputsAreEqual(arr1, arr2) {
   // Don't bother comparing lengths in prod because these arrays should be
   // passed inline.

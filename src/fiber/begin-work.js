@@ -1,3 +1,18 @@
+// =============================================================================
+// src/fiber/begin-work.js  -- "Pha XUỐNG" của render (1 nửa của DFS)
+// -----------------------------------------------------------------------------
+// Với fiber WIP đang xét, beginWork sẽ:
+//   1. Tuỳ vào tag (Root / DNode / FComponent / Text / Fragment) chạy logic
+//      tương ứng để xác định "nextChildren" (con cần render lần này).
+//   2. Reconcile children -> dựng/clone các fiber con cho WIP.
+//   3. Trả về fiber con đầu tiên để workLoop tiếp tục đi xuống.
+//      Nếu không có con (hoặc Text) -> trả null để completeUnitOfWork đi lên.
+//
+// Ngoài ra có 2 tối ưu BAILOUT (skip subtree không đổi):
+//   - Đầu hàm: nếu props/state không thay đổi -> clone children cũ thay vì
+//     reconcile lại.
+//   - updateFunctionComponent: shallowEqual props -> bailout tương tự.
+// =============================================================================
 import type { FNode } from "f-node";
 
 import { Root, DNode, FComponent, Text, Fragment } from "../shared/tag";
@@ -12,6 +27,8 @@ import shallowEqual from "../shared/shallowEqual";
 
 // test
 
+// Helper "ghim" props/state vào WIP (gọi sau khi đã xử lý xong, làm "snapshot"
+// cho lần render tiếp theo so sánh).
 export function saveProps(WIP: FNode, props: any): void {
   WIP.prevProps = props;
 }
@@ -20,6 +37,9 @@ export function saveState(WIP: FNode, state: any): void {
   WIP.prevState = state;
 }
 
+// Trường hợp đặc biệt: nếu children chỉ là string/number, ta KHÔNG tạo fiber
+// Text con mà set thẳng vào textContent của DNode -> tiết kiệm 1 fiber. Hiện
+// hàm này chưa được dùng đầy đủ trong simplified version.
 function shouldSetTextContent(type, props) {
   return (
     type === "textarea" ||
@@ -31,11 +51,15 @@ function shouldSetTextContent(type, props) {
   );
 }
 
+// Đẩy container DOM vào host-context stack. Khi reconcile children, các fiber
+// bên dưới có thể đọc được container hiện tại (vd: để xác định namespace HTML/SVG).
 function pushHostRootContext(WIP: FNode): void {
   const root = WIP.instanceNode;
   pushHostContainer(WIP, root.containerInfo);
 }
 
+// Render cho fiber Root: đọc element user truyền (rootRender.element) làm
+// child duy nhất của Root rồi reconcile.
 function updateRoot(current: FNode | null, WIP: FNode): FNode | null {
   pushHostRootContext(WIP);
 
@@ -52,6 +76,8 @@ function updateRoot(current: FNode | null, WIP: FNode): FNode | null {
   return WIP.child;
 }
 
+// Render cho 1 host element (div/p/button...): không gọi function nào, chỉ
+// reconcile `props.children` xuống các fiber con.
 function updateDomNode(current: FNode | null, WIP: FNode): FNode | null {
   const type = WIP.type;
   const nextProps = WIP.props;
@@ -62,6 +88,19 @@ function updateDomNode(current: FNode | null, WIP: FNode): FNode | null {
   return WIP.child;
 }
 
+/**
+ * Render function component:
+ *   1. BAILOUT: nếu props không đổi (shallowEqual) và status === NoWork
+ *      -> clone children cũ -> không gọi lại function -> tiết kiệm CPU.
+ *   2. prepareWithState: thiết lập "đầu danh sách hooks" để hooks bên trong
+ *      function biết phải đọc/ghi vào fiber nào.
+ *   3. Component(nextProps) -> đây là nơi function component thực sự CHẠY
+ *      và các hook (withState, lifeCycle) được gọi.
+ *   4. finishedWith: chốt lại danh sách hooks vào WIP.prevState, dọn module
+ *      state để không bị "chảy" hooks giữa 2 component khác nhau.
+ *   5. effectTag |= PerformedWork: đánh dấu cho DevTools là có chạy render.
+ *   6. reconcile children với output trả về.
+ */
 function updateFunctionComponent(
   current: FNode | null,
   WIP: FNode,
@@ -89,12 +128,15 @@ function updateFunctionComponent(
   return WIP.child;
 }
 
+// Text fiber không có con -> chỉ ghim props (chính là text) lại để
+// completeWork lần sau biết text mới.
 function updateTextNode(current, WIP) {
   const nextProps = WIP.props;
   saveProps(WIP, nextProps);
   return null;
 }
 
+// Fragment: props CHÍNH LÀ array children (xem createFNodeFromFragment).
 function updateFragment(current, WIP) {
   const nextChildren = WIP.props;
   reconcileChildren(current, WIP, nextChildren);
@@ -117,9 +159,14 @@ function resolveDefaultProps(Component: Function, baseProps: any) {
 }
 
 /**
- * @param {FNode} current
- * @param {FNode} WIP
- * @return {FNode | null}
+ * Entrypoint của file. workLoop gọi beginWork() trên mỗi fiber.
+ *
+ * Flow:
+ *   - Bailout chung: nếu cả props (so === === reference) và status (=NoWork)
+ *     đều "không đổi" -> clone children cũ và đi xuống. Tránh re-render thừa.
+ *   - Otherwise: rẽ nhánh theo tag và gọi handler tương ứng.
+ *
+ * @return fiber con đầu tiên (đi xuống), hoặc null (đã hoàn tất nhánh này).
  */
 
 export function beginWork(current: FNode | null, WIP: FNode): FNode | null {
@@ -138,6 +185,8 @@ export function beginWork(current: FNode | null, WIP: FNode): FNode | null {
     }
   }
   // reset WIP
+  // Đã quyết định work lần này -> reset về NoWork. Nếu trong quá trình render
+  // có setState (dispatchAction) thì chính nó sẽ set lại status = Working.
   WIP.status = Status.NoWork;
 
   if (WIP.tag === Root) {
