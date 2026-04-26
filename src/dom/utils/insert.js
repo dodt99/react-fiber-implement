@@ -1,4 +1,4 @@
-import { isCommentNode } from './validate';
+import { isCommentNode } from "./validate";
 
 function insertBefore(parent, child, beforeChild) {
   parent.insertBefore(child, beforeChild);
@@ -12,7 +12,4 @@ function insertInContainerBefore(container, child, beforeChild) {
   }
 }
 
-export {
-  insertInContainerBefore,
-  insertBefore
-}
+export { insertInContainerBefore, insertBefore };

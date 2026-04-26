@@ -1,14 +1,14 @@
-import type {FNode} from 'f-node';
+import type { FNode } from "f-node";
 
-import {Root, DNode, FComponent, Text, Fragment} from '../shared/tag';
-import { isObject } from '../shared/validate';
-import {PerformedWork} from '../shared/effect-tag';
-import {reconcileChildren, cloneChildFNodes} from './children';
-import {pushHostContainer} from './host-context';
-import {prepareWithState, finishedWith} from './f-with';
-import {updateRootRender} from './root-render';
-import * as Status from '../shared/status-work';
-import shallowEqual from '../shared/shallowEqual';
+import { Root, DNode, FComponent, Text, Fragment } from "../shared/tag";
+import { isObject } from "../shared/validate";
+import { PerformedWork } from "../shared/effect-tag";
+import { reconcileChildren, cloneChildFNodes } from "./children";
+import { pushHostContainer } from "./host-context";
+import { prepareWithState, finishedWith } from "./f-with";
+import { updateRootRender } from "./root-render";
+import * as Status from "../shared/status-work";
+import shallowEqual from "../shared/shallowEqual";
 
 // test
 
@@ -21,12 +21,14 @@ export function saveState(WIP: FNode, state: any): void {
 }
 
 function shouldSetTextContent(type, props) {
-  return type === 'textarea' ||
-    typeof props.children === 'string' ||
-    typeof props.children === 'number' ||
-    typeof props.dangerouslySetInnerHTML === 'object'
-      && props.dangerouslySetInnerHTML !== null
-      && typeof props.dangerouslySetInnerHTML.__html === 'string';
+  return (
+    type === "textarea" ||
+    typeof props.children === "string" ||
+    typeof props.children === "number" ||
+    (typeof props.dangerouslySetInnerHTML === "object" &&
+      props.dangerouslySetInnerHTML !== null &&
+      typeof props.dangerouslySetInnerHTML.__html === "string")
+  );
 }
 
 function pushHostRootContext(WIP: FNode): void {
@@ -40,11 +42,9 @@ function updateRoot(current: FNode | null, WIP: FNode): FNode | null {
   const rootRender = WIP.rootRender;
   const nextProps = WIP.props;
   const prevState = WIP.prevState;
-  const prevChild = prevState !== null
-    ? prevState.element
-    : null;
+  const prevChild = prevState !== null ? prevState.element : null;
   // processUpdateQueue(WIP, updateQueue, nextProps, null);
-  updateRootRender(WIP, rootRender, nextProps, null)
+  updateRootRender(WIP, rootRender, nextProps, null);
   const nextState = WIP.prevState;
   const nextChildren = nextState.element;
 
@@ -53,19 +53,20 @@ function updateRoot(current: FNode | null, WIP: FNode): FNode | null {
 }
 
 function updateDomNode(current: FNode | null, WIP: FNode): FNode | null {
-
   const type = WIP.type;
   const nextProps = WIP.props;
-  const prevProps = current !== null
-    ? current.prevProps
-    : null;
+  const prevProps = current !== null ? current.prevProps : null;
   let nextChildren = nextProps.children;
   reconcileChildren(current, WIP, nextChildren);
   saveProps(WIP, nextProps);
   return WIP.child;
 }
 
-function updateFunctionComponent(current: FNode | null, WIP: FNode, status): FNode | null {
+function updateFunctionComponent(
+  current: FNode | null,
+  WIP: FNode,
+  status
+): FNode | null {
   const Component = WIP.type;
   const unresolvedProps = WIP.props;
   const nextProps = resolveDefaultProps(Component, unresolvedProps);
@@ -116,10 +117,10 @@ function resolveDefaultProps(Component: Function, baseProps: any) {
 }
 
 /**
-* @param {FNode} current
-* @param {FNode} WIP
-* @return {FNode | null}
-*/
+ * @param {FNode} current
+ * @param {FNode} WIP
+ * @return {FNode | null}
+ */
 
 export function beginWork(current: FNode | null, WIP: FNode): FNode | null {
   const status = WIP.status;
@@ -144,11 +145,10 @@ export function beginWork(current: FNode | null, WIP: FNode): FNode | null {
   } else if (WIP.tag === DNode) {
     return updateDomNode(current, WIP);
   } else if (WIP.tag === FComponent) {
-    return updateFunctionComponent(current, WIP, status)
+    return updateFunctionComponent(current, WIP, status);
   } else if (WIP.tag === Text) {
     return updateTextNode(current, WIP);
   } else if (WIP.tag === Fragment) {
     return updateFragment(current, WIP);
-  } else
-    return null;
+  } else return null;
 }

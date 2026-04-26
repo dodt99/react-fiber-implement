@@ -1,9 +1,9 @@
 // @flow
-import type { VNodeElement, Container } from '../shared/types';
-import * as Tag from '../shared/tag';
-import * as Status from '../shared/status-work';
-import { isString, isFunction } from '../shared/validate';
-import { LinkedList } from '../structures/linked-list';
+import type { VNodeElement, Container } from "../shared/types";
+import * as Tag from "../shared/tag";
+import * as Status from "../shared/status-work";
+import { isString, isFunction } from "../shared/validate";
+import { LinkedList } from "../structures/linked-list";
 
 export type FNode = {
   // tag is what we know what is this fiber like root, function component or text ...
@@ -43,19 +43,14 @@ export type FNode = {
   status: number,
   // life cycle of this fiber
   lifeCycle: any,
-
-}
+};
 
 export type FRoot = {
   current: FNode,
   containerInfo: any,
-}
+};
 
-function FNodeConstructor(
-  tag: number,
-  props: any,
-  key: string | null
-) {
+function FNodeConstructor(tag: number, props: any, key: string | null) {
   this.tag = tag;
   this.key = key;
   this.elementType = null;
@@ -87,7 +82,11 @@ function FNodeConstructor(
   this.lifeCycle = null;
 }
 
-export function createFNode(tag: number, props: any, key: string | null): FNode {
+export function createFNode(
+  tag: number,
+  props: any,
+  key: string | null
+): FNode {
   return new FNodeConstructor(tag, props, key);
 }
 
@@ -96,7 +95,7 @@ export function createFRoot(container: Container): FRoot {
   const root = {
     current: current,
     containerInfo: container,
-  }
+  };
   current.instanceNode = root;
   return root;
 }
@@ -128,17 +127,14 @@ export function createWIP(current: FNode, props: any): FNode {
     WIP.nextEffect = null;
     WIP.firstEffect = null;
     WIP.lastEffect = null;
-    WIP.linkedList = new LinkedList();;
+    WIP.linkedList = new LinkedList();
     WIP.next = null;
-
-
   }
   WIP.child = current.child;
 
   WIP.prevProps = current.prevProps;
   WIP.prevState = current.prevState;
   WIP.rootRender = current.rootRender;
-
 
   WIP.sibling = current.sibling;
   WIP.index = current.index;
@@ -148,17 +144,16 @@ export function createWIP(current: FNode, props: any): FNode {
   WIP.lifeCycle = current.lifeCycle;
 
   return WIP;
-
-};
+}
 
 /**
  * @param {Element} el is v-node
  * @return {FNode} new Fnode is created based on v-node element
-*/
+ */
 
 export function createFNodeFromElement(el: VNodeElement): FNode {
   if (el === null) return null;
-  const { type = '', key = null, props = {} } = el;
+  const { type = "", key = null, props = {} } = el;
   let fnode;
   if (isString(type)) {
     fnode = createFNode(Tag.DNode, props, key);

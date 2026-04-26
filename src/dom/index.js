@@ -1,7 +1,4 @@
-import {
-  createContainer,
-  updateContainer
-} from '../fiber/reconciler';
+import { createContainer, updateContainer } from "../fiber/reconciler";
 
 class Root {
   constructor(container) {
@@ -20,5 +17,4 @@ export function render(el, container) {
     root = container._rootContainer = new Root(container);
     root.render(el);
   }
-
 }

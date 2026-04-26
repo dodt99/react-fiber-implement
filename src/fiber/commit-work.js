@@ -8,23 +8,12 @@ import {
   commitTextUpdate,
   removeChildFromContainer,
   removeChild,
-} from '../dom/config';
-import {
-  Root,
-  DNode,
-  Text,
-  FComponent
-} from '../shared/tag';
-import {
-  ContentReset,
-  Placement
-} from '../shared/effect-tag';
+} from "../dom/config";
+import { Root, DNode, Text, FComponent } from "../shared/tag";
+import { ContentReset, Placement } from "../shared/effect-tag";
 
 function isHostParent(fiber) {
-  return (
-    fiber.tag === DNode ||
-    fiber.tag === Root
-  );
+  return fiber.tag === DNode || fiber.tag === Root;
 }
 
 function getHostparentFNode(fiber) {
@@ -95,8 +84,7 @@ export function commitPlacement(finishedWork) {
       isContainer = true;
       break;
     default:
-      console.log('Invalid host parent')
-
+      console.log("Invalid host parent");
   }
   if (parentFNode.effectTag & ContentReset) {
     // Reset the text content of the parent before doing any insertions
@@ -111,7 +99,7 @@ export function commitPlacement(finishedWork) {
     if (node.tag === DNode || node.tag === Text) {
       if (before) {
         if (isContainer) {
-          insertInContainerBefore(parent, node.instanceNode, before)
+          insertInContainerBefore(parent, node.instanceNode, before);
         } else {
           insertBefore(parent, node.instanceNode, before);
         }
@@ -137,18 +125,16 @@ export function commitPlacement(finishedWork) {
       node = node.return;
     }
     node.sibling.return = node.return;
-    node = node.sibling
+    node = node.sibling;
   }
 }
 
 function safelyDetachRef(current) {
   const ref = current.ref;
   if (ref.current !== null) {
-
   } else {
     ref.current = null;
   }
-
 }
 
 // User-originating errors (lifecycles and refs) should not interrupt
@@ -162,7 +148,7 @@ function commitUnmount(current) {
         const lastEffect = lifeCycle.lastEffect;
         if (lastEffect !== null) {
           const firstEffect = lastEffect.next;
-          let effect= firstEffect;
+          let effect = firstEffect;
           do {
             const destroyed = effect.destroyed;
             if (!!destroyed && destroyed !== null) {
@@ -179,7 +165,6 @@ function commitUnmount(current) {
     }
   }
 }
-
 
 function commitNestedUnmounts(root) {
   // While we're inside a removed host node we don't want to call
@@ -274,7 +259,6 @@ function unmountHostComponents(current) {
     node.sibling.return = node.return;
     node = node.sibling;
   }
-
 }
 
 function detachFiber(current) {
@@ -296,13 +280,9 @@ export function commitDeletion(current) {
   detachFiber(current);
 }
 
-
-export function commitWork(
-  current,
-  finishedWork,
-) {
+export function commitWork(current, finishedWork) {
   switch (finishedWork.tag) {
-    case FComponent:{
+    case FComponent: {
       return;
     }
     case DNode: {
@@ -325,7 +305,7 @@ export function commitWork(
             type,
             oldProps,
             newProps,
-            finishedWork,
+            finishedWork
           );
         }
       }
@@ -342,7 +322,7 @@ export function commitWork(
       return;
     }
     default:
-      console.error('Errrrorrrrr!!!')
+      console.error("Errrrorrrrr!!!");
   }
 }
 
@@ -361,14 +341,14 @@ export function commitWithEffectList(unmountTag, mountTag, finishedWork) {
       if ((effect.tag & unmountTag) !== 0) {
         let destroyed = effect.destroyed;
         effect.destroyed = null;
-        if (destroyed !== null && typeof destroyed === 'function') {
+        if (destroyed !== null && typeof destroyed === "function") {
           destroyed();
         }
       }
       if ((effect.tag & mountTag) !== 0) {
         const mounted = effect.mounted;
         let destroyed = mounted();
-        if (typeof destroyed !== 'function') {
+        if (typeof destroyed !== "function") {
           destroyed = null;
         }
         effect.destroyed = destroyed;
@@ -376,5 +356,4 @@ export function commitWithEffectList(unmountTag, mountTag, finishedWork) {
       effect = effect.next;
     } while (effect !== firstEffect);
   }
-
 }

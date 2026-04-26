@@ -1,10 +1,10 @@
 // @flow
-import type { VNodeElement, Container } from '../shared/types';
-import type { FNode, FRoot } from './f-node';
+import type { VNodeElement, Container } from "../shared/types";
+import type { FNode, FRoot } from "./f-node";
 
-import { createFRoot } from './f-node';
-import { scheduleWork } from './scheduler';
-import { createRootRender } from './root-render';
+import { createFRoot } from "./f-node";
+import { scheduleWork } from "./scheduler";
+import { createRootRender } from "./root-render";
 
 export function createContainer(container: Container): FRoot {
   return createFRoot(container);

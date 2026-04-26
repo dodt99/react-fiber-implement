@@ -19,16 +19,14 @@ function flushFirstCallback() {
   let continuationCallback;
 
   continuationCallback = callback();
-
 }
-
 
 export function callLifeCycle(callback) {
   const newNode = {
     callback: callback,
     next: null,
     previous: null,
-  }
+  };
   if (firstCallbackNode === null) {
     firstCallbackNode = newNode.next = newNode.previous = newNode;
     flushFirstCallback();
@@ -52,5 +50,4 @@ export function callLifeCycle(callback) {
     newNode.next = next;
     newNode.previous = previous;
   }
-
 }

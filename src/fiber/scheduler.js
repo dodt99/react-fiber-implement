@@ -1,12 +1,7 @@
 // @flow
-import type { FNode, FRoot } from './f-node';
+import type { FNode, FRoot } from "./f-node";
 
-import {
-  Root,
-  Text,
-  DNode,
-  FComponent,
-} from '../shared/tag';
+import { Root, Text, DNode, FComponent } from "../shared/tag";
 import {
   Incomplete,
   NoEffect,
@@ -15,25 +10,22 @@ import {
   Deletion,
   Update,
   Passive,
-  PlacementAndUpdate
-} from '../shared/effect-tag';
-import {
-  UnmountLayout,
-  MountLayout
-} from '../shared/with-effect';
-import { createWIP } from './f-node';
-import { beginWork } from './begin-work';
-import { completeWork } from './complete-work';
+  PlacementAndUpdate,
+} from "../shared/effect-tag";
+import { UnmountLayout, MountLayout } from "../shared/with-effect";
+import { createWIP } from "./f-node";
+import { beginWork } from "./begin-work";
+import { completeWork } from "./complete-work";
 import {
   commitPlacement,
   commitDeletion,
   commitWork,
   commitPassiveWithEffects,
-  commitWithEffectList
-} from './commit-work';
-import { resetWiths } from './f-with';
-import { callLifeCycle } from './f-life-cycle';
-import { LinkedList } from '../structures/linked-list';
+  commitWithEffectList,
+} from "./commit-work";
+import { resetWiths } from "./f-with";
+import { callLifeCycle } from "./f-life-cycle";
+import { LinkedList } from "../structures/linked-list";
 const expireTime = 1;
 
 let nextUnitOfWork = null;
@@ -48,7 +40,7 @@ export function scheduleWork(fnode: FNode): void {
     return;
   }
   resetWiths();
-  requestIdleCallback(dl => performWork(dl, root))
+  requestIdleCallback((dl) => performWork(dl, root));
 }
 
 function getRootFromFnode(fnode: FNode): FRoot {
@@ -63,13 +55,13 @@ function getRootFromFnode(fnode: FNode): FRoot {
 function performWork(dl: any, root: FRoot): void {
   workLoop(dl, root);
   if (nextUnitOfWork) {
-    requestIdleCallback(dl => performWork(dl, root));
+    requestIdleCallback((dl) => performWork(dl, root));
   }
   if (nextUnitOfWork === null) {
     let finishedWork = root.current.alternate;
     if (finishedWork) {
       // complete Root
-      completeRoot(root, finishedWork)
+      completeRoot(root, finishedWork);
     }
   }
 }
@@ -115,22 +107,24 @@ function completeUnitOfWork(WIP: FNode): FNode | null {
         return next;
       }
 
-      if (returnFNode !== null &&
+      if (
+        returnFNode !== null &&
         // Do not append effects to parents if a sibling failed to complete
-        (returnFNode.effectTag & Incomplete) === NoEffect) {
-          returnFNode.linkedList.addEffectToParent(WIP);
-          // If this fiber had side-effects, we append it AFTER the children's
-          // side-effects. We can perform certain side-effects earlier if
-          // needed, by doing multiple passes over the effect list. We don't want
-          // to schedule our own side-effect on our own list because if end up
-          // reusing children we'll schedule this effect onto itself since we're
-          // at the end.
-          let effectTag = WIP.effectTag;
-          // Skip both NoWork and PerformedWork tags when creating the effect list.
-          // PerformedWork effect is read by React DevTools but shouldn't be committed.
-          if (effectTag > PerformedWork) {
-            returnFNode.linkedList.add(WIP)
-          }
+        (returnFNode.effectTag & Incomplete) === NoEffect
+      ) {
+        returnFNode.linkedList.addEffectToParent(WIP);
+        // If this fiber had side-effects, we append it AFTER the children's
+        // side-effects. We can perform certain side-effects earlier if
+        // needed, by doing multiple passes over the effect list. We don't want
+        // to schedule our own side-effect on our own list because if end up
+        // reusing children we'll schedule this effect onto itself since we're
+        // at the end.
+        let effectTag = WIP.effectTag;
+        // Skip both NoWork and PerformedWork tags when creating the effect list.
+        // PerformedWork effect is read by React DevTools but shouldn't be committed.
+        if (effectTag > PerformedWork) {
+          returnFNode.linkedList.add(WIP);
+        }
       }
 
       if (siblingFNode !== null) {
@@ -156,16 +150,12 @@ function completeUnitOfWork(WIP: FNode): FNode | null {
         return null;
       }
     }
-
   }
 
-  return null
+  return null;
 }
 
-export function completeRoot(
-  root: FRoot,
-  finishedWork: FNode,
-): void {
+export function completeRoot(root: FRoot, finishedWork: FNode): void {
   // Commit the root.
   root.finishedWork = null;
   commitRoot(root, finishedWork);
@@ -188,21 +178,19 @@ export function commitRoot(root: FRoot, finishedWork: FNode): void {
     }
   } else {
     // There is no effect on the root.
-    firstEffect = linkedList.first;;
+    firstEffect = linkedList.first;
   }
 
   nextEffect = firstEffect;
 
   while (nextEffect !== null) {
-    commitAllHostEffects()
+    commitAllHostEffects();
     if (nextEffect !== null) {
-        nextEffect = nextEffect.next;
+      nextEffect = nextEffect.next;
     }
   }
 
   // Invoke instances of getSnapshotBeforeUpdate before mutation.
-
-
 
   // The work-in-progress tree is now the current tree. This must come after
   // the first pass of the commit phase, so that the previous tree is still
@@ -228,10 +216,7 @@ export function commitRoot(root: FRoot, finishedWork: FNode): void {
   // after the next paint. Schedule an callback to fire them in an async
   // event. To ensure serial execution, the callback will be flushed early if
   // we enter rootWithPendingPassiveEffects commit phase before then.
-  if(
-    firstEffect !== null
-    && rootWithPendingPassiveEffects !== null
-  ) {
+  if (firstEffect !== null && rootWithPendingPassiveEffects !== null) {
     let callback = commitPassiveEffects.bind(null, root, firstEffect);
     callLifeCycle(callback);
   }
@@ -244,16 +229,15 @@ function commitPassiveEffects(root: FRoot, firstEffect: FNode): void {
     if (effect.effectTag & Passive) {
       try {
         commitPassiveWithEffects(effect);
-      } catch(err) {
-        console.log(err)
+      } catch (err) {
+        console.log(err);
       }
     }
     effect = effect.next;
-  } while(effect !== null)
+  } while (effect !== null);
 }
 
 function commitAllHostEffects() {
-
   while (nextEffect !== null) {
     const effectTag = nextEffect.effectTag;
     // The following switch statement is only concerned about placement,
@@ -283,7 +267,7 @@ function commitAllHostEffects() {
         const current = nextEffect.alternate;
         commitWork(current, nextEffect);
         break;
-      };
+      }
       case Update: {
         const current = nextEffect.alternate;
         commitWork(current, nextEffect);
@@ -297,10 +281,8 @@ function commitAllHostEffects() {
         break;
     }
     nextEffect = nextEffect.next;
-
   }
 }
-
 
 function commitAllLifeCycles(finishedRoot) {
   while (nextEffect !== null) {
@@ -313,7 +295,6 @@ function commitAllLifeCycles(finishedRoot) {
       rootWithPendingPassiveEffects = finishedRoot;
     }
     nextEffect = nextEffect.next;
-
   }
 }
 
@@ -323,12 +304,12 @@ function commitLifeCycles(finishedRoot, current, finishedWork) {
       commitWithEffectList(UnmountLayout, MountLayout, finishedWork);
       return;
     case Root:
-      return
+      return;
     case DNode:
       return;
     case Text:
       return;
     default:
-      console.log('Error')
+      console.log("Error");
   }
 }

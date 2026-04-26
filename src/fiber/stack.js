@@ -46,9 +46,4 @@ function push<T>(cursor: StackCursor<T>, value: T, fiber): void {
   cursor.current = value;
 }
 
-export {
-  createCursor,
-  isEmpty,
-  pop,
-  push,
-};
+export { createCursor, isEmpty, pop, push };

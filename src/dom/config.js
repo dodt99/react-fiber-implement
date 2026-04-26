@@ -1,18 +1,26 @@
-import createElement from './utils/createElement';
-import { createTextNode, setTextContent, resetTextContent } from './utils/textElement';
-import { appendChildToContainer, appendInitialChild, appendChild } from './utils/append';
-import { removeChildFromContainer, removeChild } from './utils/remove';
-import { insertInContainerBefore, insertBefore } from './utils/insert';
-import { isDocumentNode } from './utils/validate';
+import createElement from "./utils/createElement";
+import {
+  createTextNode,
+  setTextContent,
+  resetTextContent,
+} from "./utils/textElement";
+import {
+  appendChildToContainer,
+  appendInitialChild,
+  appendChild,
+} from "./utils/append";
+import { removeChildFromContainer, removeChild } from "./utils/remove";
+import { insertInContainerBefore, insertBefore } from "./utils/insert";
+import { isDocumentNode } from "./utils/validate";
 
-const CHILDREN = 'children';
+const CHILDREN = "children";
 
 // Assumes there is no parent namespace.
 
-const randomKey = Math.floor((Math.random() * 100) + 1);
+const randomKey = Math.floor(Math.random() * 100 + 1);
 
-const internalInstanceKey = '__reactInternalInstance$' + randomKey;
-const internalEventHandlersKey = '__reactEventHandlers$' + randomKey;
+const internalInstanceKey = "__reactInternalInstance$" + randomKey;
+const internalEventHandlersKey = "__reactEventHandlers$" + randomKey;
 
 export function precacheFiberNode(hostInst, node) {
   node[internalInstanceKey] = hostInst;
@@ -30,14 +38,15 @@ export function createDomNodeInstance(
   props,
   rootContainerInstance,
   hostContext,
-  internalInstanceHandle) {
+  internalInstanceHandle
+) {
   let parentNamespace;
   parentNamespace = hostContext;
   const domElement = createElement(
     type,
     props,
     rootContainerInstance,
-    parentNamespace,
+    parentNamespace
   );
   precacheFiberNode(internalInstanceHandle, domElement);
   updateFiberProps(domElement, props);
@@ -47,9 +56,9 @@ export function createDomNodeInstance(
 function ensureListeningTo(rootContainerElement, eventName, callback) {
   const isDocumentOrFragment = isDocumentNode(rootContainerElement);
   const dom = isDocumentOrFragment
-      ? rootContainerElement.ownerDocument
-      : rootContainerElement;
-  dom.addEventListener('click', callback, false);
+    ? rootContainerElement.ownerDocument
+    : rootContainerElement;
+  dom.addEventListener("click", callback, false);
 }
 
 function setInitialDOMProperties(
@@ -65,20 +74,20 @@ function setInitialDOMProperties(
     }
     const nextProp = nextProps[propKey];
     if (propKey === CHILDREN) {
-      if (typeof nextProp === 'string') {
+      if (typeof nextProp === "string") {
         // Avoid setting initial textContent when the text is empty. In IE11 setting
         // textContent on a <textarea> will cause the placeholder to not
         // show within the <textarea> until it has been focused and blurred again.
         // https://github.com/facebook/react/issues/6731#issuecomment-254874553
-        const canSetTextContent = tag !== 'textarea' || nextProp !== '';
+        const canSetTextContent = tag !== "textarea" || nextProp !== "";
         if (canSetTextContent) {
-          setTextContent(domElement, nextProp)
+          setTextContent(domElement, nextProp);
         }
-      } else if (typeof nextProp === 'number') {
-        setTextContent(domElement, '' + nextProp)
+      } else if (typeof nextProp === "number") {
+        setTextContent(domElement, "" + nextProp);
       }
-    } else if (propKey[0] === 'o' && propKey[1] === 'n') {
-      ensureListeningTo(domElement, propKey, nextProp)
+    } else if (propKey[0] === "o" && propKey[1] === "n") {
+      ensureListeningTo(domElement, propKey, nextProp);
     }
   }
 }
@@ -87,12 +96,12 @@ export function setInitialProperties(
   domElement,
   tag,
   rawProps,
-  rootContainerElement,
+  rootContainerElement
 ) {
   let isCustomComponentTag = false;
   let props;
   switch (tag) {
-    case 'iframe':
+    case "iframe":
     default:
       props = rawProps;
   }
@@ -103,10 +112,9 @@ export function setInitialProperties(
     domElement,
     rootContainerElement,
     props,
-    isCustomComponentTag,
+    isCustomComponentTag
   );
 }
-
 
 export function finalizeInitialChildren(
   domElement,
@@ -115,8 +123,8 @@ export function finalizeInitialChildren(
   rootContainerInstance,
   hostContext
 ) {
-  setInitialProperties(domElement, type, props, rootContainerInstance)
-  return false
+  setInitialProperties(domElement, type, props, rootContainerInstance);
+  return false;
 }
 
 export function createTextInstance(
@@ -150,7 +158,7 @@ export function updateProperties(
   updatePayload,
   tag,
   lastRawProps,
-  nextRawProps,
+  nextRawProps
 ) {
   const wasCustomComponentTag = false;
   const isCustomComponentTag = false;
@@ -159,8 +167,8 @@ export function updateProperties(
     domElement,
     updatePayload,
     wasCustomComponentTag,
-    isCustomComponentTag,
-  )
+    isCustomComponentTag
+  );
 }
 
 export function commitUpdate(
@@ -177,14 +185,9 @@ export function commitUpdate(
   updateFiberProps(domElement, newProps);
   // Apple the diff to the DOM node
   updateProperties(domElement, updatePayload, type, oldProps, newProps);
-
 }
 
-export function commitTextUpdate(
-  textInstance,
-  oldText,
-  newText,
-) {
+export function commitTextUpdate(textInstance, oldText, newText) {
   textInstance.nodeValue = newText;
 }
 
@@ -193,15 +196,15 @@ export function prepareUpdate(
   type,
   oldProps,
   newProps,
-  rootContainerInstance,
+  rootContainerInstance
 ) {
   return diffProperties(
     domElement,
     type,
     oldProps,
     newProps,
-    rootContainerInstance,
-  )
+    rootContainerInstance
+  );
 }
 
 function diffProperties(
@@ -216,7 +219,10 @@ function diffProperties(
   let nextProps = nextRawProps;
 
   // it's like remove event listener because add event listener not orverride old function
-  if (typeof lastProps.onClick === 'function' && typeof nextProps.onClick === 'function') {
+  if (
+    typeof lastProps.onClick === "function" &&
+    typeof nextProps.onClick === "function"
+  ) {
     removeEvent(domElement, lastProps.onClick);
   }
 
@@ -243,11 +249,14 @@ function diffProperties(
     }
 
     if (propKey === CHILDREN) {
-      if (lastProp !== nextProp && (typeof nextProp === 'string' || typeof nextProp === 'number')) {
-        (updatePayload = updatePayload || []).push(propKey, '' + nextProp);
+      if (
+        lastProp !== nextProp &&
+        (typeof nextProp === "string" || typeof nextProp === "number")
+      ) {
+        (updatePayload = updatePayload || []).push(propKey, "" + nextProp);
       }
-    } else if (propKey[0] === 'o' && propKey[1] === 'n') {
-      ensureListeningTo(domElement, propKey, nextProp)
+    } else if (propKey[0] === "o" && propKey[1] === "n") {
+      ensureListeningTo(domElement, propKey, nextProp);
       if (!updatePayload && lastProp !== nextProp) {
         // This is a special case. If any listener updates we need to ensure
         // that the "current" props pointer gets updated so we need a commit
@@ -262,27 +271,21 @@ function diffProperties(
   }
 
   return updatePayload;
-
-
-
 }
 
 function removeEvent(element, callback) {
-  element.removeEventListener('click', callback);
+  element.removeEventListener("click", callback);
 }
 
 export {
   createTextNode,
   setTextContent,
   resetTextContent,
-
   appendChildToContainer,
   appendInitialChild,
   appendChild,
-
   removeChildFromContainer,
   removeChild,
-
   insertInContainerBefore,
   insertBefore,
-}
+};

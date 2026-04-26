@@ -4,6 +4,6 @@ export type VNodeElement = {
   type: any,
   key: any,
   props: any,
-}
+};
 
 export type Container = Element | Document;

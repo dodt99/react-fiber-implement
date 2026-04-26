@@ -1,9 +1,7 @@
-import { scheduleWork } from './scheduler';
-import * as Status from '../shared/status-work';
-import {
-  Update as UpdateEffect
-} from '../shared/effect-tag';
-import { isObject } from '../shared/validate';
+import { scheduleWork } from "./scheduler";
+import * as Status from "../shared/status-work";
+import { Update as UpdateEffect } from "../shared/effect-tag";
+import { isObject } from "../shared/validate";
 import {
   NoEffect as NoHookEffect,
   UnmountSnapshot,
@@ -12,11 +10,11 @@ import {
   MountLayout,
   UnmountPassive,
   MountPassive,
-} from '../shared/with-effect';
+} from "../shared/with-effect";
 
 //test
-import { withState } from '../core/with-state';
-import { lifeCycle } from '../core/life-cycle';
+import { withState } from "../core/with-state";
+import { lifeCycle } from "../core/life-cycle";
 // The work-in-progress fiber. I've named it differently to distinguish it from
 // the work-in-progress hook.
 let currentlyRenderingFNode = null;
@@ -73,7 +71,6 @@ export function resetWiths() {
   firstWIPFNode = null;
   WIPWith = null;
   componentUpdateQueue = null;
-
 }
 
 function createWith() {
@@ -84,8 +81,8 @@ function createWith() {
     queue: null,
     baseUpdate: null,
 
-    next: null
-  }
+    next: null,
+  };
 }
 
 function cloneWith(With) {
@@ -101,7 +98,6 @@ function cloneWith(With) {
 }
 
 function createWIPWith() {
-
   if (WIPWith === null) {
     // this is the first hook in the list
     if (firstWIPFNode === null) {
@@ -120,7 +116,6 @@ function createWIPWith() {
       WIPWith = firstWIPFNode;
     }
   } else {
-
     if (WIPWith.next === null) {
       let With;
       if (currentWith === null) {
@@ -139,20 +134,18 @@ function createWIPWith() {
       }
       // Append to the end of the list
       WIPWith = WIPWith.next = With;
-    }
-    else {
+    } else {
       // There's already a work-in-progress. Reuse it.
       WIPWith = WIPWith.next;
       currentWith = currentWith !== null ? currentWith.next : null;
     }
-
   }
 
   return WIPWith;
 }
 
 function basicStateReducer(state, action) {
-  return typeof action === 'function' ? action(state) : action;
+  return typeof action === "function" ? action(state) : action;
 }
 
 // export const generalId = () => {
@@ -199,7 +192,7 @@ export function withReducer(initialState) {
         newState = basicStateReducer(newState, action);
         prevUpdate = update;
         update = update.next;
-      } while(update !== null && update !== first)
+      } while (update !== null && update !== first);
 
       if (!didSkip) {
         newBaseUpdate = prevUpdate;
@@ -209,7 +202,6 @@ export function withReducer(initialState) {
       WIPWith.prevState = newState;
       WIPWith.baseUpdate = newBaseUpdate;
       WIPWith.baseState = newBaseState;
-
     }
 
     const dispatch = queue.dispatch;
@@ -224,78 +216,76 @@ export function withReducer(initialState) {
     last: null,
     dispatch: null,
   };
-  const dispatch = queue.dispatch = dispatchAction.bind(null, currentlyRenderingFNode, queue);
+  const dispatch = (queue.dispatch = dispatchAction.bind(
+    null,
+    currentlyRenderingFNode,
+    queue
+  ));
 
-  return [WIPWith.prevState, dispatch]
- }
+  return [WIPWith.prevState, dispatch];
+}
 
- function dispatchAction(fnode, queue, action) {
-   fnode.status = 1;
-   const alternate = fnode.alternate;
+function dispatchAction(fnode, queue, action) {
+  fnode.status = 1;
+  const alternate = fnode.alternate;
 
-   if (alternate !== null) {
-     alternate.status = 1;
-   }
+  if (alternate !== null) {
+    alternate.status = 1;
+  }
 
-   const update = {
-     action,
-     next: null,
-   }
-   // flushPassiveEffects();
-   // append the update to the end of the list
-   const last = queue.last;
-   if (last === null) {
-     // This is the first update. Create a circular list.
-     update.next = update;
-
-   } else {
-     const first = last.next;
-     if (first !== null) {
+  const update = {
+    action,
+    next: null,
+  };
+  // flushPassiveEffects();
+  // append the update to the end of the list
+  const last = queue.last;
+  if (last === null) {
+    // This is the first update. Create a circular list.
+    update.next = update;
+  } else {
+    const first = last.next;
+    if (first !== null) {
       // Still circular.
       update.next = first;
-      }
-      last.next = update;
-   }
-   queue.last = update;
-   scheduleWork(fnode);
- }
+    }
+    last.next = update;
+  }
+  queue.last = update;
+  scheduleWork(fnode);
+}
 
+export function withLifeCycle(fnodeEffectTag, withEffectTag, lifeCycle) {
+  currentlyRenderingFNode = getCurrentRenderingFNode();
+  WIPWith = createWIPWith();
+  const inputs = undefined;
+  const nextInputs = inputs !== undefined && inputs !== null ? inputs : [];
+  let destroyed = null;
+  if (currentWith !== null) {
+    // for componentdidupdate
+    const prevEffect = currentWith.prevState;
+    destroyed = prevEffect.destroy;
+    if (inputsAreEqual(nextInputs, prevEffect.inputs)) {
+      pushEffect(NoHookEffect, lifeCycle, destroyed);
+      return;
+    }
+  }
+  currentlyRenderingFNode.effectTag |= fnodeEffectTag;
 
- export function withLifeCycle(fnodeEffectTag, withEffectTag, lifeCycle) {
-   currentlyRenderingFNode = getCurrentRenderingFNode();
-   WIPWith = createWIPWith();
-   const inputs = undefined;
-   const nextInputs = inputs !== undefined && inputs !== null ? inputs : [];
-   let destroyed = null;
-   if (currentWith !== null) {
-     // for componentdidupdate
-     const prevEffect = currentWith.prevState;
-     destroyed = prevEffect.destroy;
-     if (inputsAreEqual(nextInputs, prevEffect.inputs)) {
-       pushEffect(NoHookEffect, lifeCycle, destroyed);
-       return;
-     }
-   }
-   currentlyRenderingFNode.effectTag |= fnodeEffectTag;
+  WIPWith.prevState = pushEffect(withEffectTag, lifeCycle, destroyed);
+}
 
-   WIPWith.prevState = pushEffect(
-     withEffectTag,
-     lifeCycle,
-     destroyed,
-   );
- }
-
- function pushEffect(tag, lifeCycle, destroyed) {
-   const { mounted, updated } = lifeCycle;
-   const effect = {
-     tag,
-     mounted: mounted || null,
-     updated: updated || null,
-     destroyed: destroyed || null,
-     inputs: [],
-     // circular linked-list
-     next: null,
-   };
+function pushEffect(tag, lifeCycle, destroyed) {
+  const { mounted, updated } = lifeCycle;
+  const effect = {
+    tag,
+    mounted: mounted || null,
+    updated: updated || null,
+    destroyed: destroyed || null,
+    inputs: [],
+    // circular linked-list
+    next: null,
+  };
   if (componentUpdateQueue === null) {
     componentUpdateQueue = createFunctionComponentUpdateQueue();
     componentUpdateQueue.lastEffect = effect.next = effect;
@@ -311,15 +301,15 @@ export function withReducer(initialState) {
     }
   }
   return effect;
- }
+}
 
- function createFunctionComponentUpdateQueue() {
-   return {
-     lastEffect: null,
-   }
- }
+function createFunctionComponentUpdateQueue() {
+  return {
+    lastEffect: null,
+  };
+}
 
- function inputsAreEqual(arr1, arr2) {
+function inputsAreEqual(arr1, arr2) {
   // Don't bother comparing lengths in prod because these arrays should be
   // passed inline.
   for (let i = 0; i < arr1.length; i++) {

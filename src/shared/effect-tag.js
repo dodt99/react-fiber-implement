@@ -16,9 +16,7 @@ export {
   Update,
   PlacementAndUpdate,
   Deletion,
-
   Incomplete,
-  ContentReset ,
-  Passive
-
-}
+  ContentReset,
+  Passive,
+};

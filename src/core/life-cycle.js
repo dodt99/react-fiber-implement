@@ -1,8 +1,5 @@
-import { withLifeCycle } from '../fiber/f-with';
-import {
-  Update as UpdateEffect,
-  Passive
-} from '../shared/effect-tag';
+import { withLifeCycle } from "../fiber/f-with";
+import { Update as UpdateEffect, Passive } from "../shared/effect-tag";
 import {
   NoEffect as NoHookEffect,
   UnmountSnapshot,
@@ -11,8 +8,12 @@ import {
   MountLayout,
   UnmountPassive,
   MountPassive,
-} from '../shared/with-effect';
+} from "../shared/with-effect";
 
-export const lifeCycle = ({mounted, destroyed, updated}) => {
-  return withLifeCycle(UpdateEffect | Passive, UnmountPassive | MountPassive, {mounted, destroyed, updated});
-}
+export const lifeCycle = ({ mounted, destroyed, updated }) => {
+  return withLifeCycle(UpdateEffect | Passive, UnmountPassive | MountPassive, {
+    mounted,
+    destroyed,
+    updated,
+  });
+};

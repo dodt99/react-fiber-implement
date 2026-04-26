@@ -4,11 +4,4 @@ const FComponent = 2;
 const Text = 3;
 const Fragment = 7;
 
-
-export {
-  Root,
-  DNode,
-  FComponent,
-  Text,
-  Fragment,
-}
+export { Root, DNode, FComponent, Text, Fragment };

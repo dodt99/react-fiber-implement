@@ -1,20 +1,14 @@
-import type { Fiber } from './Fiber';
-import { REACT_ELEMENT_TYPE } from '../core/h';
+import type { Fiber } from "./Fiber";
+import { REACT_ELEMENT_TYPE } from "../core/h";
 import {
   createWIP,
   createFNodeFromElement,
   createFNodeFromFragment,
   createFNode,
-} from './f-node';
-import {
-  Root,
-  DNode,
-  FComponent,
-  Text,
-  Fragment,
-} from '../shared/tag';
-import { isArray } from '../shared/validate';
-import { NoEffect, Placement, Deletion } from '../shared/effect-tag';
+} from "./f-node";
+import { Root, DNode, FComponent, Text, Fragment } from "../shared/tag";
+import { isArray } from "../shared/validate";
+import { NoEffect, Placement, Deletion } from "../shared/effect-tag";
 
 function ChildReconciler(shouldTrackSideEffects) {
   function deleteChild(returnFNode, childToDelete) {
@@ -27,7 +21,8 @@ function ChildReconciler(shouldTrackSideEffects) {
       last.next = childToDelete;
       returnFNode.linkedList.last = childToDelete;
     } else {
-      returnFNode.linkedList.first = returnFNode.linkedList.last = childToDelete;
+      returnFNode.linkedList.first = returnFNode.linkedList.last =
+        childToDelete;
     }
     childToDelete.next = null;
     childToDelete.effectTag = Deletion;
@@ -86,43 +81,34 @@ function ChildReconciler(shouldTrackSideEffects) {
   }
 
   function createFNodeFromText(content) {
-    let fiber = createFNode(Text, content, null)
+    let fiber = createFNode(Text, content, null);
     return fiber;
   }
 
+  function createChild(returnFNode, newChild) {
+    if (typeof newChild === "string" || typeof newChild === "number") {
+      // Text nodes don't have keys. If the previous node is implicitly keyed
+      // we can continue to replace it without aborting even if it is not a text
+      // node.
+      const created = createFNodeFromText("" + newChild);
+      created.return = returnFNode;
+      return created;
+    }
 
-  function createChild(
-    returnFNode,
-    newChild,
-  ) {
-      if (typeof newChild === 'string' || typeof newChild === 'number') {
-        // Text nodes don't have keys. If the previous node is implicitly keyed
-        // we can continue to replace it without aborting even if it is not a text
-        // node.
-        const created = createFNodeFromText(
-          '' + newChild,
-        );
+    if (typeof newChild === "object" && newChild !== null) {
+      if (newChild.$$typeof) {
+        const created = createFNodeFromElement(newChild);
         created.return = returnFNode;
         return created;
       }
+    }
 
-      if (typeof newChild === 'object' && newChild !== null) {
-        if (newChild.$$typeof) {
-          const created = createFNodeFromElement(newChild);
-          created.return = returnFNode;
-          return created;
-        }
-      }
-
-      if (isArray(newChild)) {
-        const created = createFNodeFromFragment(
-          newChild,
-          null,
-        );
-        created.return = returnFNode;
-        return created;
-      }
-      return null;
+    if (isArray(newChild)) {
+      const created = createFNodeFromFragment(newChild, null);
+      created.return = returnFNode;
+      return created;
+    }
+    return null;
   }
 
   function updateTextNode(returnFNode, current, textContent) {
@@ -130,7 +116,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       // Insert
       const created = createFNodeFromText(textContent);
       created.return = returnFNode;
-      return created
+      return created;
     } else {
       // Update
       const existing = useFNode(current, textContent);
@@ -139,11 +125,7 @@ function ChildReconciler(shouldTrackSideEffects) {
     }
   }
 
-  function updateElement(
-    returnFNode,
-    current,
-    element
-  ) {
+  function updateElement(returnFNode, current, element) {
     if (current !== null && current.elementType === element.type) {
       // Move based on index
       const existing = useFNode(current, element.props);
@@ -151,9 +133,7 @@ function ChildReconciler(shouldTrackSideEffects) {
       return existing;
     } else {
       // Insert
-      const created = createFNodeFromElement(
-        element,
-      );
+      const created = createFNodeFromElement(element);
       created.return = returnFNode;
       return created;
     }
@@ -175,20 +155,16 @@ function ChildReconciler(shouldTrackSideEffects) {
 
   function updateSlot(returnFNode, oldFiber, newChild) {
     const key = oldFiber !== null ? oldFiber.key : null;
-    if (typeof newChild === 'string' || typeof newChild === 'number') {
+    if (typeof newChild === "string" || typeof newChild === "number") {
       // Text nodes don't have keys. If the previous node is implicitly keyed
       // we can continue to replace it without aborting even if it is not a text
       // node.
       if (key !== null) {
         return null;
       }
-      return updateTextNode(
-        returnFNode,
-        oldFiber,
-        '' + newChild,
-      );
+      return updateTextNode(returnFNode, oldFiber, "" + newChild);
     }
-    if (typeof newChild === 'object' && newChild !== null) {
+    if (typeof newChild === "object" && newChild !== null) {
       switch (newChild.$$typeof) {
         case REACT_ELEMENT_TYPE: {
           if (newChild.key === key) {
@@ -197,11 +173,10 @@ function ChildReconciler(shouldTrackSideEffects) {
             return null;
           }
         }
-
       }
       if (isArray(newChild)) {
         if (key !== null) {
-            return null;
+          return null;
         }
         return updateFragment(returnFNode, oldFiber, newChild);
       }
@@ -216,94 +191,93 @@ function ChildReconciler(shouldTrackSideEffects) {
     const existingChildren: Map<string | number, Fiber> = new Map();
     let existingChild = currentFirstChild;
     while (existingChild !== null) {
-          if (existingChild.key !== null) {
-            existingChildren.set(existingChild.key, existingChild);
-          } else {
-            existingChildren.set(existingChild.index, existingChild);
-          }
-          existingChild = existingChild.sibling;
-        }
+      if (existingChild.key !== null) {
+        existingChildren.set(existingChild.key, existingChild);
+      } else {
+        existingChildren.set(existingChild.index, existingChild);
+      }
+      existingChild = existingChild.sibling;
+    }
     return existingChildren;
-
   }
 
   function reconcileChildrenArray(returnFNode, currentFirstChild, newChildren) {
-      let resultingFirstChild = null;
-      let previousnewFNode = null;
+    let resultingFirstChild = null;
+    let previousnewFNode = null;
 
-      let oldFiber = currentFirstChild; // null
-      let lastPlacedIndex = 0;
-      let newIdx = 0;
-      let nextOldFiber = null;
+    let oldFiber = currentFirstChild; // null
+    let lastPlacedIndex = 0;
+    let newIdx = 0;
+    let nextOldFiber = null;
 
-      for (; oldFiber !== null && newIdx < newChildren.length; newIdx++) {
-        if (oldFiber.index > newIdx) {
-          nextOldFiber = oldFiber;
-          oldFiber = null;
-        } else {
-          nextOldFiber = oldFiber.sibling;
+    for (; oldFiber !== null && newIdx < newChildren.length; newIdx++) {
+      if (oldFiber.index > newIdx) {
+        nextOldFiber = oldFiber;
+        oldFiber = null;
+      } else {
+        nextOldFiber = oldFiber.sibling;
+      }
+      const newFNode = updateSlot(returnFNode, oldFiber, newChildren[newIdx]);
+      if (newFNode === null) {
+        // TODO: This breaks on empty slots like null children. That's
+        // unfortunate because it triggers the slow path all the time. We need
+        // a better way to communicate whether this was a miss or null,
+        // boolean, undefined, etc.
+        if (oldFiber === null) {
+          oldFiber = nextOldFiber;
         }
-        const newFNode = updateSlot(returnFNode, oldFiber, newChildren[newIdx]);
-        if (newFNode === null) {
-          // TODO: This breaks on empty slots like null children. That's
-          // unfortunate because it triggers the slow path all the time. We need
-          // a better way to communicate whether this was a miss or null,
-          // boolean, undefined, etc.
-          if (oldFiber === null) {
-            oldFiber = nextOldFiber;
-          }
-          break;
+        break;
+      }
+      lastPlacedIndex = placeChild(newFNode, lastPlacedIndex, newIdx);
+
+      if (previousnewFNode === null) {
+        resultingFirstChild = newFNode;
+      } else {
+        previousnewFNode.sibling = newFNode;
+      }
+      previousnewFNode = newFNode;
+      oldFiber = nextOldFiber;
+    }
+
+    if (newIdx === newChildren.length) {
+      // We've reached the end of the new children. We can delete the rest.
+      deleteRemainingChildren(returnFNode, oldFiber);
+      return resultingFirstChild;
+    }
+
+    if (oldFiber === null) {
+      // If we don't have any more existing children we can choose a fast path
+      // since the rest will all be insertions.
+      for (; newIdx < newChildren.length; newIdx++) {
+        const newFNode = createChild(returnFNode, newChildren[newIdx]);
+        // if newFNode === null continue
+        if (!newFNode) {
+          continue;
         }
         lastPlacedIndex = placeChild(newFNode, lastPlacedIndex, newIdx);
-
+        // we will set relation ship here
         if (previousnewFNode === null) {
+          // TODO: Move out of the loop. This only happens for the first run.
           resultingFirstChild = newFNode;
         } else {
           previousnewFNode.sibling = newFNode;
         }
         previousnewFNode = newFNode;
-        oldFiber = nextOldFiber;
       }
-
-      if (newIdx === newChildren.length) {
-        // We've reached the end of the new children. We can delete the rest.
-        deleteRemainingChildren(returnFNode, oldFiber);
-        return resultingFirstChild;
-      }
-
-      if (oldFiber === null) {
-        // If we don't have any more existing children we can choose a fast path
-        // since the rest will all be insertions.
-        for (; newIdx < newChildren.length; newIdx++) {
-          const newFNode = createChild(
-            returnFNode,
-            newChildren[newIdx],
-          );
-          // if newFNode === null continue
-          if (!newFNode) {
-            continue;
-          }
-          lastPlacedIndex = placeChild(newFNode, lastPlacedIndex, newIdx);
-          // we will set relation ship here
-          if (previousnewFNode === null) {
-            // TODO: Move out of the loop. This only happens for the first run.
-            resultingFirstChild = newFNode;
-          } else {
-            previousnewFNode.sibling = newFNode;
-          }
-          previousnewFNode = newFNode
-        }
-        return resultingFirstChild;
-      }
-      // Add all children to a key map for quick lookups.
-      const existingChildren = mapRemainingChildren(returnFNode, oldFiber);
-
-      // Keep scanning and use the map to restore deleted items as moves.
       return resultingFirstChild;
+    }
+    // Add all children to a key map for quick lookups.
+    const existingChildren = mapRemainingChildren(returnFNode, oldFiber);
 
+    // Keep scanning and use the map to restore deleted items as moves.
+    return resultingFirstChild;
   }
 
-  function reconcileSingleTextNode(returnFNode, currentFirstChild, textContent) {
+  function reconcileSingleTextNode(
+    returnFNode,
+    currentFirstChild,
+    textContent
+  ) {
     // There's no need to check for keys on text nodes since we don't have a
     // way to define them.
     if (currentFirstChild !== null && currentFirstChild.tag === Text) {
@@ -332,7 +306,7 @@ function ChildReconciler(shouldTrackSideEffects) {
           deleteRemainingChildren(returnFNode, child.sibling);
           let existing = useFNode(child, el.props);
           existing.return = returnFNode;
-          return existing
+          return existing;
         } else {
           deleteRemainingChildren(returnFNode, child);
           break;
@@ -348,20 +322,24 @@ function ChildReconciler(shouldTrackSideEffects) {
   }
 
   function reconcileChilds(returnFNode, currentFirstChild, newChild) {
-    const isObject = typeof newChild === 'object' && newChild !== null;
+    const isObject = typeof newChild === "object" && newChild !== null;
 
     if (isObject) {
       if (newChild.$$typeof) {
         // after find a child we will set effectTag is Placement ... it's mean we will create it
-        return placeSingleChild(reconcileSingleElement(returnFNode, currentFirstChild, newChild));
+        return placeSingleChild(
+          reconcileSingleElement(returnFNode, currentFirstChild, newChild)
+        );
       }
     }
-    if (typeof newChild === 'string' || typeof newChild === 'number') {
+    if (typeof newChild === "string" || typeof newChild === "number") {
       // after find a child we will set effectTag is Placement ... it's mean we will create it
-      return placeSingleChild(reconcileSingleTextNode(returnFNode, currentFirstChild, '' + newChild));
+      return placeSingleChild(
+        reconcileSingleTextNode(returnFNode, currentFirstChild, "" + newChild)
+      );
     }
     if (isArray(newChild)) {
-        return reconcileChildrenArray(returnFNode, currentFirstChild, newChild);
+      return reconcileChildrenArray(returnFNode, currentFirstChild, newChild);
     }
     return deleteRemainingChildren(returnFNode, currentFirstChild);
   }
@@ -369,15 +347,10 @@ function ChildReconciler(shouldTrackSideEffects) {
   return reconcileChilds;
 }
 
-
-
 export const reconcileChilds = ChildReconciler(true);
 export const mountChilds = ChildReconciler(false);
 
-export function cloneChildFNodes(
-  current,
-  WIP
-) {
+export function cloneChildFNodes(current, WIP) {
   if (WIP.child === null) {
     return;
   }
@@ -388,10 +361,7 @@ export function cloneChildFNodes(
   newChild.return = WIP;
   while (currentChild.sibling !== null) {
     currentChild = currentChild.sibling;
-    newChild = newChild.sibling = createWIP(
-      currentChild,
-      currentChild.props
-    );
+    newChild = newChild.sibling = createWIP(currentChild, currentChild.props);
     newChild.return = WIP;
   }
   newChild.sibling = null;

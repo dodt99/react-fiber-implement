@@ -1,7 +1,6 @@
-import { isCommentNode } from './validate';
+import { isCommentNode } from "./validate";
 
 export function removeChildFromContainer(container, child) {
-  
   if (isCommentNode(container)) {
     container.parentNode.removeChild(child);
   } else {

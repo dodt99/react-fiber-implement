@@ -1,4 +1,4 @@
-import { withReducer } from '../fiber/f-with';
+import { withReducer } from "../fiber/f-with";
 
 export function withState(initialState) {
   return withReducer(initialState);

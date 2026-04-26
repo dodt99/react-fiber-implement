@@ -6,15 +6,13 @@
  *
  * @flow
  */
-import type {StackCursor} from './stack';
-import {createCursor, push, pop} from './stack';
+import type { StackCursor } from "./stack";
+import { createCursor, push, pop } from "./stack";
 
 declare class NoContextT {}
 const NO_CONTEXT: NoContextT = ({}: any);
 
-let rootInstanceStackCursor: StackCursor<T> = createCursor(
-  NO_CONTEXT,
-);
+let rootInstanceStackCursor: StackCursor<T> = createCursor(NO_CONTEXT);
 
 function requiredContext<Value>(c: Value | NoContextT): Value {
   return (c: any);
@@ -35,8 +33,4 @@ function popHostContainer(fiber) {
   pop(rootInstanceStackCursor, fiber);
 }
 
-export {
-  getRootHostContainer,
-  popHostContainer,
-  pushHostContainer,
-};
+export { getRootHostContainer, popHostContainer, pushHostContainer };

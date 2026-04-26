@@ -1,15 +1,14 @@
 // @flow
-import { isNil, isFunction } from '../shared/validate';
+import { isNil, isFunction } from "../shared/validate";
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
-
-const hasSymbol = typeof Symbol === 'function' && Symbol.for;
+const hasSymbol = typeof Symbol === "function" && Symbol.for;
 
 export const REACT_ELEMENT_TYPE = hasSymbol
-  ? Symbol.for('react.element')
+  ? Symbol.for("react.element")
   : 0xeac7;
 export const REACT_FRAGMENT_TYPE = hasSymbol
-  ? Symbol.for('react.fragment')
+  ? Symbol.for("react.fragment")
   : 0xeacb;
 
 const RESERVED_PROPS = {
@@ -28,7 +27,7 @@ function VNode(type, props, key) {
     type: type,
     props: props,
     key: key,
-  }
+  };
 
   return vnode;
 }
@@ -39,13 +38,16 @@ export function h(type, options, children) {
   let key = null;
   if (!isNil(options)) {
     if (hasValidKey(options)) {
-      key = '' + options.key;
+      key = "" + options.key;
     }
     for (propName in options) {
       // Why use hasOwnProperty.call instead of someObj.hasOwnProperty?
       // 1.hasOwnProperty is defined on the object as something else
       // 2.The object in question is being used as a map and doesn't inherit from Object.prototype, so it doesn't have hasOwnProperty:
-      if (hasOwnProperty.call(options, propName) && !RESERVED_PROPS.hasOwnProperty(propName)) {
+      if (
+        hasOwnProperty.call(options, propName) &&
+        !RESERVED_PROPS.hasOwnProperty(propName)
+      ) {
         props[propName] = options[propName];
       }
     }
